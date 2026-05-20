@@ -99,6 +99,86 @@ usage:
 EOF
 }
 
+_ensure_session() {
+  tmux has-session -t "$PEERCTL_TMUX_SESSION" 2>/dev/null \
+    || tmux new-session -d -s "$PEERCTL_TMUX_SESSION" -n __scratch
+}
+
+cmd_spawn() {
+  local name="" base="HEAD" nogit=0 dir=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --base) base="$2"; shift 2 ;;
+      --no-git) nogit=1; shift ;;
+      --dir) dir="$2"; shift 2 ;;
+      -*) die "spawn: unknown option $1" ;;
+      *) [[ -z "$name" ]] && name="$1" || die "spawn: extra arg $1"; shift ;;
+    esac
+  done
+  [[ -n "$name" ]] || die "spawn: name required"
+  local pd; pd="$(peer_dir "$name")"
+  [[ -e "$pd/meta" ]] && die "spawn: peer '$name' already exists"
+
+  local workdir branch=""
+  if [[ -n "$dir" ]]; then
+    workdir="$dir"; mkdir -p "$workdir"
+  elif [[ $nogit -eq 1 ]]; then
+    workdir="$(mktemp -d "${TMPDIR:-/tmp}/peer-$name.XXXX")"
+  else
+    git rev-parse --is-inside-work-tree >/dev/null 2>&1 || die "spawn: not in a git repo (use --no-git or --dir)"
+    branch="peer/$name"
+    workdir="$(git rev-parse --show-toplevel)/.peers/$name"
+    git worktree add -b "$branch" "$workdir" "$base" >/dev/null
+  fi
+
+  mkdir -p "$pd"
+  install_hook "$workdir" "$pd"
+  meta_set "$pd" target "$PEERCTL_TMUX_SESSION:$name"
+  meta_set "$pd" workdir "$workdir"
+  meta_set "$pd" branch "$branch"
+
+  _ensure_session
+  tmux new-window -t "$PEERCTL_TMUX_SESSION" -n "$name" -c "$workdir"
+  tmux send-keys -t "$PEERCTL_TMUX_SESSION:$name" -l -- "$PEERCTL_AGENT"
+  tmux send-keys -t "$PEERCTL_TMUX_SESSION:$name" Enter
+  printf 'spawned peer %s (workdir: %s)\n' "$name" "$workdir"
+}
+
+cmd_list() {
+  local base="$PEERCTL_HOME/peers"
+  [[ -d "$base" ]] || { echo "(no peers)"; return 0; }
+  local pd name target sig last status
+  for pd in "$base"/*/; do
+    [[ -d "$pd" ]] || continue
+    name="$(basename "$pd")"
+    target="$(meta_get "$pd" target)"
+    sig="$(read_signal_epoch "$pd")"
+    last="$(cat "$pd/last_send" 2>/dev/null || echo 0)"
+    if [[ "$last" -gt "$sig" ]]; then status="working"; else status="idle"; fi
+    printf '%-16s %-20s %s\n' "$name" "$target" "$status"
+  done
+}
+
+cmd_kill() {
+  local name="" keep=0
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --keep-worktree) keep=1; shift ;;
+      *) [[ -z "$name" ]] && name="$1" || die "kill: extra arg $1"; shift ;;
+    esac
+  done
+  [[ -n "$name" ]] || die "kill: name required"
+  local pd; pd="$(peer_dir "$name")"
+  local target workdir branch
+  target="$(meta_get "$pd" target)"; workdir="$(meta_get "$pd" workdir)"; branch="$(meta_get "$pd" branch)"
+  [[ -n "$target" ]] && tmux kill-window -t "$target" 2>/dev/null || true
+  if [[ $keep -eq 0 && -n "$branch" && -n "$workdir" ]]; then
+    git worktree remove --force "$workdir" 2>/dev/null || true
+  fi
+  rm -rf "$pd"
+  printf 'killed peer %s\n' "$name"
+}
+
 main() {
   local cmd="${1:-}"; shift || true
   case "$cmd" in
