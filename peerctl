@@ -8,6 +8,34 @@ PEERCTL_AGENT="${PEERCTL_AGENT:-claude}"
 
 die() { printf 'peerctl: %s\n' "$*" >&2; exit 1; }
 
+peer_dir() { printf '%s/peers/%s\n' "$PEERCTL_HOME" "$1"; }
+
+# meta は key=value 行。値は read で安全に取り出す（source しない）
+meta_set() {
+  local pd="$1" key="$2" val="$3"
+  mkdir -p "$pd"
+  local tmp; tmp="$(mktemp)"
+  { grep -v "^${key}=" "$pd/meta" 2>/dev/null || true; printf '%s=%s\n' "$key" "$val"; } > "$tmp"
+  mv "$tmp" "$pd/meta"
+}
+meta_get() {
+  local pd="$1" key="$2"
+  [[ -f "$pd/meta" ]] || { printf ''; return 0; }
+  local line; line="$(grep "^${key}=" "$pd/meta" | tail -1)"
+  printf '%s' "${line#*=}"
+}
+
+read_signal_epoch() {
+  local pd="$1"
+  [[ -f "$pd/signal" ]] || { printf '0'; return 0; }
+  cut -f1 "$pd/signal"
+}
+read_signal_field() {
+  local pd="$1" n="$2"
+  [[ -f "$pd/signal" ]] || { printf ''; return 0; }
+  cut -f"$n" "$pd/signal"
+}
+
 # 最終 user 行より後ろの assistant テキストを連結して返す
 extract_last_reply() {
   local file="$1"
