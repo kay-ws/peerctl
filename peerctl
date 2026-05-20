@@ -8,6 +8,23 @@ PEERCTL_AGENT="${PEERCTL_AGENT:-claude}"
 
 die() { printf 'peerctl: %s\n' "$*" >&2; exit 1; }
 
+# 最終 user 行より後ろの assistant テキストを連結して返す
+extract_last_reply() {
+  local file="$1"
+  jq -rs '
+    (map(.message.role // .type) | rindex("user")) as $u
+    | if $u == null then "" else
+        .[($u+1):]
+        | map(select((.message.role // "") == "assistant") | .message.content)
+        | map(if type == "array" then (map(select(.type == "text") | .text) | join("\n"))
+              elif type == "string" then .
+              else "" end)
+        | map(select(. != ""))
+        | join("\n")
+      end
+  ' "$file"
+}
+
 usage() {
   cat <<'EOF'
 peerctl - orchestrate Claude Code peers over tmux

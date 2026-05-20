@@ -1,0 +1,4 @@
+{"type":"user","message":{"role":"user","content":"q1"}}
+{"type":"assistant","message":{"role":"assistant","content":"a1"}}
+{"type":"user","message":{"role":"user","content":"q2"}}
+{"type":"assistant","message":{"role":"assistant","content":"a2"}}
