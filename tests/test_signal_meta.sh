@@ -6,7 +6,7 @@ source "$here/assert.sh"
 source "$here/../peerctl"
 set +eu +o pipefail
 
-export PEERCTL_HOME="$(mktemp -d)"
+PEERCTL_HOME="$(mktemp -d)"; export PEERCTL_HOME
 trap 'rm -rf "$PEERCTL_HOME"' EXIT
 
 pd="$(peer_dir alpha)"

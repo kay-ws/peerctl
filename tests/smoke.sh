@@ -5,7 +5,7 @@ set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 PC="$here/../peerctl"
 
-export PEERCTL_HOME="$(mktemp -d)"
+PEERCTL_HOME="$(mktemp -d)"; export PEERCTL_HOME
 export PEERCTL_TMUX_SESSION="peerctl_smoke_$$"
 cleanup() { "$PC" kill smoke 2>/dev/null || true; tmux kill-session -t "$PEERCTL_TMUX_SESSION" 2>/dev/null || true; rm -rf "$PEERCTL_HOME"; }
 trap cleanup EXIT

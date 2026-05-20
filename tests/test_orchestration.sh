@@ -8,7 +8,7 @@ set +eu +o pipefail
 
 command -v tmux >/dev/null || { echo "SKIP: tmux 不在"; exit 0; }
 
-export PEERCTL_HOME="$(mktemp -d)"
+PEERCTL_HOME="$(mktemp -d)"; export PEERCTL_HOME
 export PEERCTL_TMUX_SESSION="peerctl_test_$$"
 export PEERCTL_AGENT="cat"   # claude の代わりに cat を起動（入力を待つだけ）
 trap 'tmux kill-session -t "$PEERCTL_TMUX_SESSION" 2>/dev/null; rm -rf "$PEERCTL_HOME"' EXIT
