@@ -10,6 +10,38 @@ die() { printf 'peerctl: %s\n' "$*" >&2; exit 1; }
 
 peer_dir() { printf '%s/peers/%s\n' "$PEERCTL_HOME" "$1"; }
 
+# 指定 peerdir の signal に書き込む on-stop スクリプト本体を出力
+render_hook() {
+  local pd="$1"
+  cat <<EOF
+#!/bin/bash
+
+input=\$(cat)
+sid=\$(printf '%s' "\$input" | jq -r '.session_id // ""')
+tp=\$(printf '%s' "\$input" | jq -r '.transcript_path // ""')
+printf '%s\t%s\t%s\n' "\$(date +%s)" "\$sid" "\$tp" > "$pd/signal"
+exit 0
+EOF
+}
+
+# workdir に Stop hook 用の on-stop.sh と .claude/settings.local.json を設置
+install_hook() {
+  local workdir="$1" pd="$2"
+  mkdir -p "$pd"
+  render_hook "$pd" > "$pd/on-stop.sh"
+  chmod +x "$pd/on-stop.sh"
+  mkdir -p "$workdir/.claude"
+  cat > "$workdir/.claude/settings.local.json" <<EOF
+{
+  "hooks": {
+    "Stop": [
+      { "hooks": [ { "type": "command", "command": "$pd/on-stop.sh" } ] }
+    ]
+  }
+}
+EOF
+}
+
 # meta は key=value 行。値は read で安全に取り出す（source しない）
 meta_set() {
   local pd="$1" key="$2" val="$3"
