@@ -1,0 +1,41 @@
+#!/bin/bash
+
+set -euo pipefail
+
+PEERCTL_HOME="${PEERCTL_HOME:-${XDG_RUNTIME_DIR:-/tmp}/peerctl}"
+PEERCTL_TMUX_SESSION="${PEERCTL_TMUX_SESSION:-peers}"
+PEERCTL_AGENT="${PEERCTL_AGENT:-claude}"
+
+die() { printf 'peerctl: %s\n' "$*" >&2; exit 1; }
+
+usage() {
+  cat <<'EOF'
+peerctl - orchestrate Claude Code peers over tmux
+
+usage:
+  peerctl spawn <name> [--base <ref>] [--no-git] [--dir <path>]
+  peerctl send  <name> <message...>
+  peerctl recv  <name> [--timeout <seconds>]
+  peerctl ask   <name> <message...> [--timeout <seconds>]
+  peerctl list
+  peerctl kill  <name> [--keep-worktree]
+EOF
+}
+
+main() {
+  local cmd="${1:-}"; shift || true
+  case "$cmd" in
+    spawn) cmd_spawn "$@" ;;
+    send)  cmd_send "$@" ;;
+    recv)  cmd_recv "$@" ;;
+    ask)   cmd_ask "$@" ;;
+    list)  cmd_list "$@" ;;
+    kill)  cmd_kill "$@" ;;
+    ""|-h|--help|help) usage ;;
+    *) usage >&2; die "unknown command: $cmd" ;;
+  esac
+}
+
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  main "$@"
+fi
