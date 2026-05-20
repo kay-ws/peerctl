@@ -179,6 +179,59 @@ cmd_kill() {
   printf 'killed peer %s\n' "$name"
 }
 
+cmd_send() {
+  local name="${1:-}"; shift || true
+  [[ -n "$name" ]] || die "send: name required"
+  local msg="$*"
+  [[ -n "$msg" ]] || die "send: message required"
+  local pd; pd="$(peer_dir "$name")"
+  local target; target="$(meta_get "$pd" target)"
+  [[ -n "$target" ]] || die "send: unknown peer '$name'"
+  date +%s > "$pd/last_send"
+  # 改行を空白化 → 本文(リテラル, Enter なし) → 独立 Enter の 2 段送信
+  local oneline="${msg//$'\n'/ }"
+  tmux send-keys -t "$target" -l -- "$oneline"
+  tmux send-keys -t "$target" Enter
+}
+
+cmd_recv() {
+  local name="" timeout=120
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --timeout) timeout="$2"; shift 2 ;;
+      *) [[ -z "$name" ]] && name="$1" || die "recv: extra arg $1"; shift ;;
+    esac
+  done
+  [[ -n "$name" ]] || die "recv: name required"
+  local pd; pd="$(peer_dir "$name")"
+  [[ -f "$pd/meta" ]] || die "recv: unknown peer '$name'"
+  local since; since="$(cat "$pd/last_send" 2>/dev/null || echo 0)"
+  local deadline=$(( $(date +%s) + timeout ))
+  while [[ $(date +%s) -lt $deadline ]]; do
+    local sig; sig="$(read_signal_epoch "$pd")"
+    if [[ "$sig" -gt "$since" ]]; then
+      local tp; tp="$(read_signal_field "$pd" 3)"
+      [[ -f "$tp" ]] && { extract_last_reply "$tp"; return 0; }
+    fi
+    sleep 0.3
+  done
+  die "recv: timeout waiting for '$name' (peer may still be working)"
+}
+
+cmd_ask() {
+  local name="${1:-}"; shift || true
+  [[ -n "$name" ]] || die "ask: name required"
+  local timeout=120 args=()
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --timeout) timeout="$2"; shift 2 ;;
+      *) args+=("$1"); shift ;;
+    esac
+  done
+  cmd_send "$name" "${args[@]}"
+  cmd_recv "$name" --timeout "$timeout"
+}
+
 main() {
   local cmd="${1:-}"; shift || true
   case "$cmd" in

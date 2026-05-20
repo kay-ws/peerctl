@@ -21,4 +21,11 @@ assert_contains "$(cmd_list)" "gamma" "list shows peer"
 
 cmd_kill gamma
 assert_eq "" "$(meta_get "$pd" target)" "kill removed peer dir (meta gone)"
+
+# recv 単体: signal とフィクスチャ transcript を仕込み、送信時刻より新しければ応答を返す
+pd2="$(peer_dir delta)"; mkdir -p "$pd2"
+meta_set "$pd2" target "$PEERCTL_TMUX_SESSION:delta"
+echo 0 > "$pd2/last_send"
+printf '%s\t%s\t%s\n' "$(($(date +%s)+1))" "Sx" "$here/fixtures/simple.jsonl" > "$pd2/signal"
+assert_eq "クリーン受信OK" "$(cmd_recv delta --timeout 2)" "recv returns last reply"
 finish
