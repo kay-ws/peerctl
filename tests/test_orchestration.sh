@@ -11,6 +11,7 @@ command -v tmux >/dev/null || { echo "SKIP: tmux 不在"; exit 0; }
 PEERCTL_HOME="$(mktemp -d)"; export PEERCTL_HOME
 export PEERCTL_TMUX_SESSION="peerctl_test_$$"
 export PEERCTL_AGENT="cat"   # claude の代わりに cat を起動（入力を待つだけ）
+export PEERCTL_SPAWN_WAIT=0  # stub は ready マーカーを出さないので待ちを無効化
 trap 'tmux kill-session -t "$PEERCTL_TMUX_SESSION" 2>/dev/null; rm -rf "$PEERCTL_HOME"' EXIT
 
 cmd_spawn gamma --no-git

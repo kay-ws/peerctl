@@ -10,10 +10,8 @@ export PEERCTL_TMUX_SESSION="peerctl_smoke_$$"
 cleanup() { "$PC" kill smoke 2>/dev/null || true; tmux kill-session -t "$PEERCTL_TMUX_SESSION" 2>/dev/null || true; rm -rf "$PEERCTL_HOME"; }
 trap cleanup EXIT
 
-echo "== spawn =="
+echo "== spawn (ready 待ち込み) =="
 "$PC" spawn smoke --no-git
-echo "== claude 起動を待つ (8s) =="
-sleep 8
 echo "== ask =="
 reply="$("$PC" ask smoke '「スモークOK」とだけ短く返して' --timeout 90)"
 echo "reply: $reply"

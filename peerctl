@@ -5,6 +5,7 @@ set -euo pipefail
 PEERCTL_HOME="${PEERCTL_HOME:-${XDG_RUNTIME_DIR:-/tmp}/peerctl}"
 PEERCTL_TMUX_SESSION="${PEERCTL_TMUX_SESSION:-peers}"
 PEERCTL_AGENT="${PEERCTL_AGENT:-claude}"
+PEERCTL_SPAWN_WAIT="${PEERCTL_SPAWN_WAIT:-1}"   # 0 で spawn の ready 待ちを無効（テスト用）
 
 die() { printf 'peerctl: %s\n' "$*" >&2; exit 1; }
 
@@ -104,6 +105,26 @@ _ensure_session() {
     || tmux new-session -d -s "$PEERCTL_TMUX_SESSION" -n __scratch
 }
 
+# claude TUI が prompt を受け付けられる状態になるまで待つ。
+# 新規 dir では初回に「このフォルダを信頼する?」ダイアログが出るので、
+# 既定の "Yes, I trust this folder" を Enter で承認してから ready を待つ。
+# capture-pane の条件ポーリングで、固定 sleep に頼らない。
+_wait_ready() {
+  local target="$1" timeout="${2:-30}"
+  local deadline=$(( $(date +%s) + timeout )) pane trusted=0
+  while [[ $(date +%s) -lt $deadline ]]; do
+    pane="$(tmux capture-pane -p -t "$target" 2>/dev/null || true)"
+    if [[ $trusted -eq 0 && "$pane" == *"trust this folder"* ]]; then
+      tmux send-keys -t "$target" Enter
+      trusted=1
+    elif [[ "$pane" == *"Context:"* || "$pane" == *"Welcome"* ]]; then
+      return 0
+    fi
+    sleep 0.5
+  done
+  return 1
+}
+
 cmd_spawn() {
   local name="" base="HEAD" nogit=0 dir=""
   while [[ $# -gt 0 ]]; do
@@ -141,6 +162,11 @@ cmd_spawn() {
   tmux new-window -t "$PEERCTL_TMUX_SESSION" -n "$name" -c "$workdir"
   tmux send-keys -t "$PEERCTL_TMUX_SESSION:$name" -l -- "$PEERCTL_AGENT"
   tmux send-keys -t "$PEERCTL_TMUX_SESSION:$name" Enter
+
+  if [[ "$PEERCTL_SPAWN_WAIT" == "1" ]]; then
+    _wait_ready "$PEERCTL_TMUX_SESSION:$name" 30 \
+      || die "spawn: peer '$name' did not reach a ready prompt (agent failed to start?)"
+  fi
   printf 'spawned peer %s (workdir: %s)\n' "$name" "$workdir"
 }
 
