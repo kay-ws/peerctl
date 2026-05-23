@@ -40,3 +40,6 @@ peerctl spawn talker --no-git
 for t in tests/test_*.sh; do bash "$t"; done   # 単体（外部依存ゼロ、claude 不要）
 bash tests/smoke.sh                            # end-to-end（実 claude + tmux 必須、手動）
 ```
+
+## ライセンス
+MIT License — 詳細は [LICENSE](LICENSE) を参照。
