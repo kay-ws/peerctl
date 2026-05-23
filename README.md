@@ -1,6 +1,6 @@
 # peerctl
 
-VS Code も MCP も使わず、tmux + git worktree + Claude Code Stop hook + JSONL transcript だけで
+tmux + git worktree + Claude Code Stop hook + JSONL transcript だけで
 「1 オーケストレータ + 複数ピア」の Claude Code 並列オーケストレーションを行う単一 bash CLI。
 
 ## 依存
