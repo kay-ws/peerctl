@@ -19,6 +19,9 @@ peerctl recv alpha --timeout 60
 
 # コードを触らない会話専用ピアは worktree 不要
 peerctl spawn talker --no-git
+
+# ステータス確認（別ターミナルで）
+watch -n1 peerctl list
 ```
 
 ## 仕組み
