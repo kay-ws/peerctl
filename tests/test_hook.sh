@@ -17,8 +17,9 @@ settings="$workdir/.claude/settings.local.json"
 assert_contains "$(cat "$settings")" "Stop" "settings has Stop hook"
 assert_contains "$(cat "$settings")" "$pd/on-stop.sh" "settings points to hook script"
 
-payload='{"session_id":"S123","transcript_path":"/tmp/x.jsonl","hook_event_name":"Stop"}'
+payload='{"session_id":"S123","transcript_path":"/tmp/x.jsonl","hook_event_name":"Stop","last_assistant_message":"all done"}'
 printf '%s' "$payload" | bash "$pd/on-stop.sh"
 assert_eq "S123"         "$(read_signal_field "$pd" 2)" "hook wrote session_id"
 assert_eq "/tmp/x.jsonl" "$(read_signal_field "$pd" 3)" "hook wrote transcript_path"
+assert_eq "all done"     "$(read_signal_field "$pd" 4)" "hook wrote last_assistant_message"
 finish

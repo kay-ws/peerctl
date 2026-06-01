@@ -20,7 +20,8 @@ render_hook() {
 input=\$(cat)
 sid=\$(printf '%s' "\$input" | jq -r '.session_id // ""')
 tp=\$(printf '%s' "\$input" | jq -r '.transcript_path // ""')
-printf '%s\t%s\t%s\n' "\$(date +%s)" "\$sid" "\$tp" > "$pd/signal"
+lam=\$(printf '%s' "\$input" | jq -r '.last_assistant_message // ""')
+printf '%s\t%s\t%s\t%s\n' "\$(date +%s)" "\$sid" "\$tp" "\$lam" > "$pd/signal"
 exit 0
 EOF
 }
@@ -194,7 +195,15 @@ cmd_list() {
     target="$(meta_get "$pd" target)"
     sig="$(read_signal_epoch "$pd")"
     last="$(cat "$pd/last_send" 2>/dev/null || echo 0)"
-    if [[ "$last" -gt "$sig" ]]; then status="working"; else status="idle"; fi
+    if [[ "$last" -gt "$sig" ]]; then
+      local elapsed=$(( $(date +%s) - last ))
+      status="working(${elapsed}s)"
+    elif [[ "$sig" -gt 0 ]]; then
+      local lam; lam="$(read_signal_field "$pd" 4)"
+      status="done: \"${lam:0:30}\""
+    else
+      status="idle"
+    fi
     printf '%-16s %-20s %s\n' "$name" "$target" "$status"
   done
 }
