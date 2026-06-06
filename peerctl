@@ -92,7 +92,8 @@ usage() {
 peerctl - orchestrate Claude Code peers over tmux
 
 usage:
-  peerctl spawn <name> [--base <ref>] [--no-git] [--dir <path>]
+  peerctl spawn  <name> [--base <ref>] [--no-git] [--dir <path>]
+  peerctl ensure <name> [--base <ref>] [--no-git] [--dir <path>]
   peerctl send  <name> <message...>
   peerctl recv  <name> [--timeout <seconds>]
   peerctl ask   <name> <message...> [--timeout <seconds>]
@@ -183,6 +184,27 @@ cmd_spawn() {
       || die "spawn: peer '$name' did not reach a ready prompt (agent failed to start?)"
   fi
   printf 'spawned peer %s (workdir: %s)\n' "$name" "$workdir"
+}
+
+# spawn の冪等版: peer が既にあれば no-op、無ければ元の引数で spawn にパススルー
+cmd_ensure() {
+  local -a rest=("$@")
+  local name=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --base|--dir) shift 2 ;;
+      --no-git) shift ;;
+      -*) die "ensure: unknown option $1" ;;
+      *) if [[ -z "$name" ]]; then name="$1"; fi; shift ;;
+    esac
+  done
+  [[ -n "$name" ]] || die "ensure: name required"
+  local pd; pd="$(peer_dir "$name")"
+  if [[ -e "$pd/meta" ]]; then
+    printf 'peer %s already exists\n' "$name"
+    return 0
+  fi
+  cmd_spawn "${rest[@]}"
 }
 
 cmd_list() {
@@ -285,6 +307,7 @@ main() {
   local cmd="${1:-}"; shift || true
   case "$cmd" in
     spawn) cmd_spawn "$@" ;;
+    ensure) cmd_ensure "$@" ;;
     send)  cmd_send "$@" ;;
     recv)  cmd_recv "$@" ;;
     ask)   cmd_ask "$@" ;;
