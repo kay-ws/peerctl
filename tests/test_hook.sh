@@ -113,4 +113,17 @@ pd4c="$(peer_dir un4c)"
 uninstall_hook "$wd4c" "$pd4c"; rc4c=$?
 assert_eq "0" "$rc4c" "uninstall: 不在ファイルは no-op で return 0"
 
+# --- cmd_kill: --dir の settings を掃除する ---
+
+# 7) kill が settings を掃除し、peer state dir も消す
+wd7="$scratch/case7"; mkdir -p "$wd7"
+pd7="$(peer_dir killme)"
+install_hook "$wd7" "$pd7"
+meta_set "$pd7" workdir "$wd7"
+meta_set "$pd7" target ""
+meta_set "$pd7" branch ""
+cmd_kill killme >/dev/null 2>&1
+assert_eq "no" "$([[ -f "$wd7/.claude/settings.local.json" ]] && echo yes || echo no)" "kill: --dir の settings を掃除"
+assert_eq "no" "$([[ -d "$pd7" ]] && echo yes || echo no)" "kill: peer state dir を削除"
+
 finish

@@ -300,6 +300,7 @@ cmd_kill() {
   if [[ $keep -eq 0 && -n "$branch" && -n "$workdir" ]]; then
     git worktree remove --force "$workdir" 2>/dev/null || true
   fi
+  [[ -n "$workdir" ]] && uninstall_hook "$workdir" "$pd" || true
   rm -rf "$pd"
   printf 'killed peer %s\n' "$name"
 }
