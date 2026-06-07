@@ -98,4 +98,19 @@ s6="$(cat "$wd6/.claude/settings.local.json")"
 assert_not_contains "$s6" "$pdA/on-stop.sh" "uninstall: 撤去した peer のエントリは消える"
 assert_contains     "$s6" "$pdB/on-stop.sh" "uninstall: 別 peer のエントリは残る"
 
+# 4b) created_file=0（自作でない）なら、中身が空になってもファイルを消さず {} に更新
+wd4b="$scratch/case4b"; mkdir -p "$wd4b/.claude"
+printf '{}' > "$wd4b/.claude/settings.local.json"
+pd4b="$(peer_dir un4b)"
+install_hook "$wd4b" "$pd4b"
+uninstall_hook "$wd4b" "$pd4b"
+assert_eq "yes" "$([[ -f "$wd4b/.claude/settings.local.json" ]] && echo yes || echo no)" "uninstall: 自作でないファイルは空でも残す"
+assert_eq "{}" "$(cat "$wd4b/.claude/settings.local.json")" "uninstall: 中身は {} に更新"
+
+# 4c) settings 不在で uninstall を呼んでもクラッシュせず return 0
+wd4c="$scratch/case4c"; mkdir -p "$wd4c"
+pd4c="$(peer_dir un4c)"
+uninstall_hook "$wd4c" "$pd4c"; rc4c=$?
+assert_eq "0" "$rc4c" "uninstall: 不在ファイルは no-op で return 0"
+
 finish
