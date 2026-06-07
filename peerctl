@@ -52,11 +52,12 @@ install_hook() {
   [[ -d "$claude_dir" ]] || created_dir=1
   mkdir -p "$claude_dir"
 
-  local tmp; tmp="$(mktemp)"
+  local tmp; tmp="$(mktemp "$claude_dir/.settings.XXXXXX")"
   jq --arg cmd "$cmd_path" \
     '.hooks.Stop = ((.hooks.Stop // []) + [{hooks:[{type:"command",command:$cmd}]}])' \
     <<<"$base_json" > "$tmp" \
     || { rm -f "$tmp"; die "install: $settings へのマージに失敗しました"; }
+  if [[ "$created_file" == "0" ]]; then chmod --reference="$settings" "$tmp"; fi
   mv "$tmp" "$settings"
 
   meta_set "$pd" hook_created_file "$created_file"
@@ -81,7 +82,8 @@ uninstall_hook() {
   created_file="$(meta_get "$pd" hook_created_file)"
   created_dir="$(meta_get "$pd" hook_created_dir)"
 
-  local tmp; tmp="$(mktemp)"
+  local claude_dir="$workdir/.claude"
+  local tmp; tmp="$(mktemp "$claude_dir/.settings.XXXXXX")"
   jq --arg cmd "$cmd_path" '
     .hooks.Stop = ((.hooks.Stop // []) | map(select(
       ([.hooks[]?.command] | any(. == $cmd)) | not
@@ -92,8 +94,9 @@ uninstall_hook() {
 
   if [[ "$created_file" == "1" && "$(cat "$tmp")" == "{}" ]]; then
     rm -f "$settings" "$tmp"
-    [[ "$created_dir" == "1" ]] && rmdir "$workdir/.claude" 2>/dev/null || true
+    [[ "$created_dir" == "1" ]] && rmdir "$claude_dir" 2>/dev/null || true
   else
+    chmod --reference="$settings" "$tmp"
     mv "$tmp" "$settings"
   fi
 }

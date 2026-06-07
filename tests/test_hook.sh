@@ -128,4 +128,25 @@ assert_eq "0" "$rc7" "kill: 正常終了"
 assert_eq "no" "$([[ -f "$wd7/.claude/settings.local.json" ]] && echo yes || echo no)" "kill: --dir の settings を掃除"
 assert_eq "no" "$([[ -d "$pd7" ]] && echo yes || echo no)" "kill: peer state dir を削除"
 
+# 1c) 既存ファイルの mode を保持する（mktemp 600 を継承しない）
+wd1c="$scratch/case1c"; mkdir -p "$wd1c/.claude"
+printf '{}' > "$wd1c/.claude/settings.local.json"
+chmod 644 "$wd1c/.claude/settings.local.json"
+pd1c="$(peer_dir mode1c)"
+install_hook "$wd1c" "$pd1c"
+assert_eq "644" "$(stat -c %a "$wd1c/.claude/settings.local.json")" "install: 既存ファイルの mode を保持"
+uninstall_hook "$wd1c" "$pd1c"
+assert_eq "644" "$(stat -c %a "$wd1c/.claude/settings.local.json")" "uninstall: 既存ファイルの mode を保持"
+
+# 4d) install→uninstall で既存設定が意味的に復元される
+wd4d="$scratch/case4d"; mkdir -p "$wd4d/.claude"
+cat > "$wd4d/.claude/settings.local.json" <<'JSON'
+{ "permissions": { "allow": ["Bash(ls:*)"] }, "env": { "FOO": "bar" } }
+JSON
+orig4d="$(jq -S . "$wd4d/.claude/settings.local.json")"
+pd4d="$(peer_dir rt4d)"
+install_hook "$wd4d" "$pd4d"
+uninstall_hook "$wd4d" "$pd4d"
+assert_eq "$orig4d" "$(jq -S . "$wd4d/.claude/settings.local.json")" "round-trip: 既存設定が意味的に復元"
+
 finish
