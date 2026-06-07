@@ -26,22 +26,40 @@ exit 0
 EOF
 }
 
-# workdir に Stop hook 用の on-stop.sh と .claude/settings.local.json を設置
+# workdir の .claude/settings.local.json に自分の Stop hook を「マージ」で足す。
+# 既存ファイルは壊さず（不正 JSON なら die）、自分のエントリだけ追加する。
+# kill の後始末判断のため created_file/created_dir を meta に記録する。
 install_hook() {
   local workdir="$1" pd="$2"
   mkdir -p "$pd"
   render_hook "$pd" > "$pd/on-stop.sh"
   chmod +x "$pd/on-stop.sh"
-  mkdir -p "$workdir/.claude"
-  cat > "$workdir/.claude/settings.local.json" <<EOF
-{
-  "hooks": {
-    "Stop": [
-      { "hooks": [ { "type": "command", "command": "$pd/on-stop.sh" } ] }
-    ]
-  }
-}
-EOF
+
+  local cmd_path="$pd/on-stop.sh"
+  local claude_dir="$workdir/.claude"
+  local settings="$claude_dir/settings.local.json"
+  local created_dir=0 created_file=0 base_json
+
+  if [[ -f "$settings" ]]; then
+    jq -e . "$settings" >/dev/null 2>&1 \
+      || die "install: $settings は不正な JSON です。修正するか削除してから再実行してください"
+    base_json="$(cat "$settings")"
+  else
+    created_file=1
+    base_json='{}'
+  fi
+
+  [[ -d "$claude_dir" ]] || created_dir=1
+  mkdir -p "$claude_dir"
+
+  local tmp; tmp="$(mktemp)"
+  jq --arg cmd "$cmd_path" \
+    '.hooks.Stop = ((.hooks.Stop // []) + [{hooks:[{type:"command",command:$cmd}]}])' \
+    <<<"$base_json" > "$tmp"
+  mv "$tmp" "$settings"
+
+  meta_set "$pd" hook_created_file "$created_file"
+  meta_set "$pd" hook_created_dir "$created_dir"
 }
 
 # meta は key=value 行。値は read で安全に取り出す（source しない）
