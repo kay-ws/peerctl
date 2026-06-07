@@ -55,7 +55,8 @@ install_hook() {
   local tmp; tmp="$(mktemp)"
   jq --arg cmd "$cmd_path" \
     '.hooks.Stop = ((.hooks.Stop // []) + [{hooks:[{type:"command",command:$cmd}]}])' \
-    <<<"$base_json" > "$tmp"
+    <<<"$base_json" > "$tmp" \
+    || { rm -f "$tmp"; die "install: $settings へのマージに失敗しました"; }
   mv "$tmp" "$settings"
 
   meta_set "$pd" hook_created_file "$created_file"
