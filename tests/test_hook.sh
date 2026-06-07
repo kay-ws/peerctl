@@ -66,4 +66,36 @@ install_hook "$wd3b" "$pd3b"
 assert_eq "1" "$(meta_get "$pd3b" hook_created_file)" "install: dir のみ存在は created_file=1"
 assert_eq "0" "$(meta_get "$pd3b" hook_created_dir)"  "install: dir のみ存在は created_dir=0"
 
+# --- uninstall_hook: 自分のエントリだけ撤去 ---
+
+# 4) 既存ユーザ設定を残し、自分の hook だけ消える
+wd4="$scratch/case4"; mkdir -p "$wd4/.claude"
+cat > "$wd4/.claude/settings.local.json" <<'JSON'
+{ "permissions": { "allow": ["Bash(ls:*)"] } }
+JSON
+pd4="$(peer_dir un4)"
+install_hook "$wd4" "$pd4"
+uninstall_hook "$wd4" "$pd4"
+s4="$(cat "$wd4/.claude/settings.local.json")"
+assert_contains     "$s4" "Bash(ls:*)"  "uninstall: 既存ユーザ設定は残る"
+assert_not_contains "$s4" "on-stop.sh"   "uninstall: 自分の hook は消える"
+
+# 5) 自分で作ったファイル/ディレクトリは削除
+wd5="$scratch/case5"; mkdir -p "$wd5"
+pd5="$(peer_dir un5)"
+install_hook "$wd5" "$pd5"
+uninstall_hook "$wd5" "$pd5"
+assert_eq "no" "$([[ -f "$wd5/.claude/settings.local.json" ]] && echo yes || echo no)" "uninstall: 自作ファイルは削除"
+assert_eq "no" "$([[ -d "$wd5/.claude" ]] && echo yes || echo no)" "uninstall: 自作の空 .claude も rmdir"
+
+# 6) 同一 settings に 2 peer → 片方撤去でもう片方は残る
+wd6="$scratch/case6"; mkdir -p "$wd6"
+pdA="$(peer_dir twoA)"; pdB="$(peer_dir twoB)"
+install_hook "$wd6" "$pdA"
+install_hook "$wd6" "$pdB"
+uninstall_hook "$wd6" "$pdA"
+s6="$(cat "$wd6/.claude/settings.local.json")"
+assert_not_contains "$s6" "$pdA/on-stop.sh" "uninstall: 撤去した peer のエントリは消える"
+assert_contains     "$s6" "$pdB/on-stop.sh" "uninstall: 別 peer のエントリは残る"
+
 finish

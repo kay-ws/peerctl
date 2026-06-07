@@ -63,6 +63,41 @@ install_hook() {
   meta_set "$pd" hook_created_dir "$created_dir"
 }
 
+# install_hook が足した自分の Stop hook エントリだけを撤去する。command パス
+# （peer 固有の on-stop.sh）をマーカーに使うので、同じ dir に複数 peer が居ても
+# 自分のぶんだけ消える。外部要因で不正 JSON 化していたら触らない。自分で作った
+# ファイル/.claude は（中身が空になったら）削除する。
+uninstall_hook() {
+  local workdir="$1" pd="$2"
+  local settings="$workdir/.claude/settings.local.json"
+  [[ -f "$settings" ]] || return 0
+  jq -e . "$settings" >/dev/null 2>&1 || {
+    printf 'peerctl: warning: %s は不正な JSON のため hook を撤去せず残します\n' "$settings" >&2
+    return 0
+  }
+
+  local cmd_path="$pd/on-stop.sh"
+  local created_file created_dir
+  created_file="$(meta_get "$pd" hook_created_file)"
+  created_dir="$(meta_get "$pd" hook_created_dir)"
+
+  local tmp; tmp="$(mktemp)"
+  jq --arg cmd "$cmd_path" '
+    .hooks.Stop = ((.hooks.Stop // []) | map(select(
+      ([.hooks[]?.command] | any(. == $cmd)) | not
+    )))
+    | if (.hooks.Stop // []) == [] then del(.hooks.Stop) else . end
+    | if (.hooks // {}) == {} then del(.hooks) else . end
+  ' "$settings" > "$tmp" || { rm -f "$tmp"; return 0; }
+
+  if [[ "$created_file" == "1" && "$(cat "$tmp")" == "{}" ]]; then
+    rm -f "$settings" "$tmp"
+    [[ "$created_dir" == "1" ]] && rmdir "$workdir/.claude" 2>/dev/null || true
+  else
+    mv "$tmp" "$settings"
+  fi
+}
+
 # meta は key=value 行。値は read で安全に取り出す（source しない）
 meta_set() {
   local pd="$1" key="$2" val="$3"
